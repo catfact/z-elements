@@ -9,8 +9,8 @@ ZEcho {
 	classvar maxDelayTime;
 
 	*new {
-		arg server, targetNode;
-		^super.new.init(server, targetNode);
+		arg server, targetNode, synthArgs;
+		^super.new.init(server, targetNode, synthArgs);
 	}
 
 	*addSynthDefs {
@@ -20,22 +20,26 @@ ZEcho {
 		SynthDef.new(\ZEcho, {
 			arg buf, in, out,
 			inLevel=1, outLevel=1,
-			time=1;
+			dubLevel=0,
+			time=1, phaseLagTime=1;
 
 			var input, output, phaseWrite, phaseRead, bufFrames, phaseOffset;
+
 			input = In.ar(in, 2) * inLevel;
-
-
-			// this dont work cause we want stereo!~!@!
-			//output = BufDelayN.ar(buf, input, time) * outLevel;
+			input = input + (LocalIn.ar(2) * dubLevel);
 
 			bufFrames = BufFrames.ir(buf);
-			phaseRead = Phasor.ar(rate:1, start:0, end:bufFrames);
+			phaseWrite = Phasor.ar(rate:1, start:0, end:bufFrames);
+
 			phaseOffset = time * SampleRate.ir;
-			phaseWrite = phaseRead + phaseOffset;
+			phaseOffset = Lag.ar(K2A.ar(phaseOffset), phaseLagTime);
+
+			phaseRead = phaseWrite - phaseOffset + bufFrames;
 
 			BufWr.ar(input, buf, phaseWrite);
 			output = BufRd.ar(2, buf, phaseRead);
+
+			LocalOut.ar(output);
 
 
 			Out.ar(out, output);
@@ -45,7 +49,9 @@ ZEcho {
 
 	// NB: must be run inside a Routine/Task/Thread!!
 	init {
-		arg aServer, aTargetNode;
+		arg aServer, aTargetNode, aSynthArgs;
+		var synthArgs;
+
 		server = aServer;
 
 		bus = Dictionary.new;
@@ -55,11 +61,14 @@ ZEcho {
 		buf = Buffer.alloc(server, server.sampleRate * maxDelayTime, 2);
 
 		server.sync;
-		synth = Synth.new(\ZEcho, [\in, bus[\in].index, \out, bus[\out].index, \buf, buf.bufnum], aTargetNode);
+
+		synthArgs = [\in, bus[\in].index, \out, bus[\out].index, \buf, buf.bufnum];
+		if (aSynthArgs.notNil, { synthArgs = synthArgs ++ aSynthArgs });
+		synth = Synth.new(\ZEcho, synthArgs, aTargetNode);
 	}
 
 	setDelayTime { arg time;
-		setSynthParam(\time, time);
+		this.setSynthParam(\time, time);
 	}
 
 	setSynthParam { arg key, value;

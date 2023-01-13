@@ -1,4 +1,6 @@
 // base class for echo
+/// TODO: should be able to inherit this and just redefine the synthdef
+/// for other behaviors (crossfading or glitching instead of sweeping, different filters etc)
 ZEcho {
 
 	var <server;
@@ -45,8 +47,13 @@ ZEcho {
 			BufWr.ar(input, buf, phaseWrite);
 			output = BufRd.ar(2, buf, phaseRead);
 
+			/// this can also go after feedback (or the paths can be filtered differently)
 			output = RLPF.ar(RHPF.ar(output, hpfFc, hpfRq), lpfFc, lpfRq).tanh;
 			LocalOut.ar(output);
+
+			/// TODO: ^ LocalIn/LocalOut adds 1block feedback, shifting buffer contents
+			/// we can also recirculate using an additional BufRd with same phase as BufWr,
+			/// for lossless / shiftless preservation
 
 			Out.ar(out, output * outLevel);
 

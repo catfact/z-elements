@@ -21,7 +21,7 @@ ZEcho {
 			arg buf, in, out,
 			inLevel=1, outLevel=1,
 			dubLevel=0,
-			time=1, phaseLagTime=1;
+			time=1, phaseLagTime=0.1, phaseSlewRate=2;
 
 			var input, output, phaseWrite, phaseRead, bufFrames, phaseOffset;
 
@@ -31,9 +31,10 @@ ZEcho {
 			bufFrames = BufFrames.ir(buf);
 			phaseWrite = Phasor.ar(rate:1, start:0, end:bufFrames);
 
-			phaseOffset = time * SampleRate.ir;
-			phaseOffset = Lag.ar(K2A.ar(phaseOffset), phaseLagTime);
-
+			phaseOffset = K2A.ar(time * SampleRate.ir);
+			phaseSlewRate = phaseSlewRate*SampleRate.ir;
+			phaseOffset = Slew.ar(phaseOffset, phaseSlewRate, phaseSlewRate);
+			phaseOffset = Lag.ar(phaseOffset, phaseLagTime);
 			phaseRead = phaseWrite - phaseOffset + bufFrames;
 
 			BufWr.ar(input, buf, phaseWrite);

@@ -21,9 +21,12 @@ ZEcho {
 			arg buf, in, out,
 			inLevel=1, outLevel=1,
 			dubLevel=0,
-			time=1, phaseLagTime=0.1, phaseSlewRate=2;
+			time=1, phaseLagTime=0.1, phaseSlewRate=2,
+			lpfFc=20000, hpfFc=10,
+			lpfRq=1, hpfRq=1;
 
-			var input, output, phaseWrite, phaseRead, bufFrames, phaseOffset;
+			var input, output, phaseWrite, phaseRead, bufFrames, phaseOffset, sampleRate;
+			sampleRate = SampleRate.ir;
 
 			input = In.ar(in, 2) * inLevel;
 			input = input + (LocalIn.ar(2) * dubLevel);
@@ -31,19 +34,21 @@ ZEcho {
 			bufFrames = BufFrames.ir(buf);
 			phaseWrite = Phasor.ar(rate:1, start:0, end:bufFrames);
 
-			phaseOffset = K2A.ar(time * SampleRate.ir);
-			phaseSlewRate = phaseSlewRate*SampleRate.ir;
-			phaseOffset = Slew.ar(phaseOffset, phaseSlewRate, phaseSlewRate);
+			phaseOffset = K2A.ar(time * sampleRate);
+			phaseSlewRate = phaseSlewRate * sampleRate;
+
+			phaseOffset = Slew.ar(phaseOffset, phaseSlewRate + sampleRate, phaseSlewRate);
+
 			phaseOffset = Lag.ar(phaseOffset, phaseLagTime);
 			phaseRead = phaseWrite - phaseOffset + bufFrames;
 
 			BufWr.ar(input, buf, phaseWrite);
 			output = BufRd.ar(2, buf, phaseRead);
 
+			output = RLPF.ar(RHPF.ar(output, hpfFc, hpfRq), lpfFc, lpfRq).tanh;
 			LocalOut.ar(output);
 
-
-			Out.ar(out, output);
+			Out.ar(out, output * outLevel);
 
 		}).send(aServer);
 	}

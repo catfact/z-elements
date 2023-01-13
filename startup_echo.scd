@@ -24,7 +24,11 @@ s.waitForBoot {
 
 		ZEcho.addSynthDefs(s);
 		s.sync;
-		z = ZEcho.new(s, ~xg, [\dubLevel, 0.5]);
+		z = ZEcho.new(s, ~xg, [
+			\dubLevel, -4.dbamp,
+			\lpfFc, 60.midicps*2, \hpfFc, 36.midicps,
+			\hpfRq, 0.2, \hpfRq, 0.2,
+			\time, 2.5]);
 
 		~z_in_s = Synth.new(\patch2, [\in, ~main_in_b.index, \out, z.bus[\in].index], ~ig);
 		~z_out_s = Synth.new(\patch2, [\in, z.bus[\out].index, \out, ~main_out_b.index], ~og);

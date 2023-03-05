@@ -50,11 +50,11 @@ ZAudioContext {
 		server.sync;
 
 		group = Dictionary.new;
-			// group to hold (internal) input patches
+		// group to hold (internal) input patches
 		group[\in] = Group.new(server);
-			// group to hold processing synths
+		// group to hold processing synths
 		group[\process] = Group.after(group[\in]);
-			// group to hold (internal) output patches
+		// group to hold (internal) output patches
 		group[\out] = Group.after(group[\out]);
 
 		bus = Dictionary.new;
@@ -83,56 +83,54 @@ ZAudioContext {
 		], group[\out], \addAfter);
 	}
 }
-
-// just a stereo bus and patches
-ZStereoAuxLoop {
-	var <bus, <synth, context;
-
-	*new { arg context;
-		^super.new.init(context)
-	}
-
-	init { arg aContext;
-		context = aContext;
-		bus = Dictionary.newFrom([
-			\in, Bus.audio(context.server, 2),
-			\out, Bus.audio(context.server, 2)
-		]);
-
-		synth = Dictionary.newFrom([
-			\in, Synth.new(\patch_stereo, [
-				\in, context.bus[\hw_in], \out, bus[\in]
-			], context.group[\in]),
-
-			\out, Synth.new(\patch_stereo, [
-				\out, context.bus[\hw_out], \in, bus[\out]
-			], context.group[\out]),
-		]);
-	}
-}
-
-// base / wrapper class for our effects
-// this can be subclassed or simply instanced with a given synthdef
-// synthdefs are assumed to operate on a bus in-place  (e.g. using `ReplaceOut`)
-ZStereoInsertEffect {
-	var <synth, <def, bus;
-	*new { arg def, bus, args;
-		^super.new.init(def, bus, args)
-	}
-
-	init { arg aDef, aBus, target=nil, aArgs=[];
-		def = aDef;
-		bus = aBus;
-		synth = Synth.new(def.asSymbol, [\bus, bus] ++ aArgs, if(target.notNil, {target}, {Server.default}));
-	}
-
-}
+//
+// // just a stereo bus and patches
+// ZStereoAuxLoop {
+// 	var <bus, <synth, context;
+//
+// 	*new { arg context;
+// 		^super.new.init(context)
+// 	}
+//
+// 	init { arg aContext;
+// 		context = aContext;
+// 		bus = Dictionary.newFrom([
+// 			\in, Bus.audio(context.server, 2),
+// 			\out, Bus.audio(context.server, 2)
+// 		]);
+//
+// 		synth = Dictionary.newFrom([
+// 			\in, Synth.new(\patch_stereo, [
+// 				\in, context.bus[\hw_in], \out, bus[\in]
+// 			], context.group[\in]),
+//
+// 			\out, Synth.new(\patch_stereo, [
+// 				\out, context.bus[\hw_out], \in, bus[\out]
+// 			], context.group[\out]),
+// 		]);
+// 	}
+// }
+//
+// // base / wrapper class for our effects
+// // this can be subclassed or simply instanced with a given synthdef
+// // synthdefs are assumed to operate on a bus in-place  (e.g. using `ReplaceOut`)
+// ZStereoInsertEffect {
+// 	var <synth, <def, bus;
+// 	*new { arg def, bus, args;
+// 		^super.new.init(def, bus, args)
+// 	}
+//
+// 	init { arg aDef, aBus, target=nil, aArgs=[];
+// 		def = aDef;
+// 		bus = aBus;
+// 		synth = Synth.new(def.asSymbol, [\bus, bus] ++ aArgs, if(target.notNil, {target}, {Server.default}));
+// 	}
+// }
 
 // simple MIDI input boilerplate
 ZMidiInput {
 
-	var <midifunc;
-	var <handler;
+	var <handle, <midiFunc;
 
 	*new { arg deviceName;
 		^super.new.init(deviceName)
@@ -140,27 +138,28 @@ ZMidiInput {
 
 	init { arg aDeviceName;
 
+		/// fixme: filter on device name; here all devices are used
 		MIDIIn.connectAll;
 
 		/// user or subclass should redefine these!
-		handler = Dictionary.newFrom([
-			\noteon, { arg ... args; (["noteon"] ++ args).postln; },
-			\noteoff, { arg ... args; (["noteoff"] ++ args).postln; },
-			\cc, { arg ... args; (["cc"] ++ args).postln; },
-			\pitchbend, { arg ... args; (["pitchbend"] ++ args).postln; },
+		handle = Dictionary.newFrom([
+			\noteOn, { arg ... args; (["default noteOn"] ++ args).postln; },
+			\noteOff, { arg ... args; (["default noteOff"] ++ args).postln; },
+			\cc, { arg ... args; (["default cc"] ++ args).postln; },
+			\bend, { arg ... args; (["default bend"] ++ args).postln; },
 		]);
 
-		midifunc = Dictionary.newFrom([
-			\noteon, MIDIFunc.noteon({ arg ...args; handler[\noteon].value(args)}, nil),
-			\noteoff, MIDIFunc.noteon({ arg ...args; handler[\noteoff].value(args)}, nil),
-			\cc, MIDIFunc.noteon({ arg ...args; handler[\cc].value(args)}, nil),
-			\pitchbend, MIDIFunc.noteon({ arg ...args; handler[\pitchbend].value(args)}, nil),
+		midiFunc = Dictionary.newFrom([
+			\noteOn, MIDIFunc.noteOn({ arg ...args; handle[\noteOn].value(args)}, nil),
+			\noteOff, MIDIFunc.noteOff({ arg ...args; handle[\noteOff].value(args)}, nil),
+			\cc, MIDIFunc.cc({ arg ...args; handle[\cc].value(args)}, nil),
+			\bend, MIDIFunc.bend({ arg ...args; handle[\bend].value(args)}, nil),
 		]);
 	}
 
 	free {
-		midifunc.do({ arg func, i; func.free; });
+		midiFunc.do({ arg func, i; func.free; });
 	}
 
-
+	setHandler { arg key, func; handle[key] = func; }
 }

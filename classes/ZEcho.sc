@@ -25,14 +25,14 @@ ZEcho {
 		});
 	}
 
-
+	/// constructor
 	// NB: assumed to be run inside a Routine/Task/Thread!
 	// subclasses could override, but likely don't need to
-	init { arg aServer, aTargetNode, aSynthArgs, aMaxDelayTime;
+	init { arg aServer, aTargetNode, aSynthArgs, aMaxDelayTime=nil;
 		var synthArgs, synthDef;
 
 		server = aServer;
-		maxDelayTime = aMaxDelayTime;
+		maxDelayTime = if(aMaxDelayTime.notNil, { aMaxDelayTime}, { defaultMaxDelayTime });
 
 		bus = Dictionary.new;
 		bus[\in] = Bus.audio(server, 2);
@@ -48,10 +48,12 @@ ZEcho {
 		synth = Synth.new(synthDef.name, synthArgs, aTargetNode);
 	}
 
+
+	//-----------------------------------------
+	/// instance methods
 	setDelayTime { arg time;
 		this.setSynthParam(\time, time);
 	}
-
 	setFeedbackLevel { arg level;
 		this.setSynthParam(\feedback, level);
 	}
@@ -60,3 +62,101 @@ ZEcho {
 		synth.set(key, value);
 	}
 }
+
+
+///------------------------------
+/// a naive starting place
+
+ZEchoNaive : ZEcho
+{
+	classvar <synthDef;
+
+	*initClass {
+		synthDef = SynthDef.new(\ZEchoNaive, {
+			arg buf, in, out, level=1, time=1, feedback=0;
+
+			var input, output;
+			var phaseRd, phaseWr, phaseOffset;
+
+			input = In.ar(in, 2);
+
+			phaseRd = Phasor.ar(end: BufFrames.ir(buf));
+			phaseOffset = time * SampleRate.ir;
+			phaseWr = phaseRd + phaseOffset;
+
+			output = BufRd.ar(2, buf, phaseRd);
+			input = input + (feedback * output);
+			BufWr.ar(input, buf, phaseWr);
+
+			Out.ar(out, output * level);
+		});
+	}
+}
+
+
+
+ZEchoNaiveMod : ZEcho
+{
+	classvar <synthDef;
+
+	*initClass {
+		synthDef = SynthDef.new(\ZEchoNaive, {
+			arg buf, in, out, level=1, time=1, feedback=0, modTime=1;
+
+			var input, output;
+			var phaseRd, phaseWr, phaseOffset, bufFrames;
+
+			bufFrames = BufFrames.ir(buf);
+
+			input = In.ar(in, 2);
+
+			phaseWr = Phasor.ar(end: BufFrames.ir(buf));
+			phaseOffset = time * SampleRate.ir;
+			phaseOffset = Lag.ar(K2A.ar(phaseOffset), modTime);
+			phaseOffset = phaseOffset.min(bufFrames);
+			phaseRd = phaseWr + bufFrames - phaseOffset;
+
+			output = BufRd.ar(2, buf, phaseRd);
+			input = input + (feedback * output);
+			BufWr.ar(input, buf, phaseWr);
+
+			Out.ar(out, output * level);
+		});
+	}
+}
+
+
+ZEchoSlewMod : ZEcho
+{
+	classvar <synthDef;
+
+	*initClass {
+		synthDef = SynthDef.new(\ZEchoSlewMod, {
+			arg buf, in, out, level=1, time=1, feedback=0, lagTime=0.25, slewRateLimitUp=2, slewRateLimitDown=3;
+
+			var input, output;
+			var phaseRd, phaseWr, phaseOffset, bufFrames;
+
+
+			bufFrames = BufFrames.ir(buf);
+
+			input = In.ar(in, 2);
+
+			phaseWr = Phasor.ar(end: BufFrames.ir(buf));
+			phaseOffset = K2A.ar(time * SampleRate.ir);
+
+			phaseOffset = Slew.ar(phaseOffset, slewRateLimitUp*SampleRate.ir, slewRateLimitDown*SampleRate.ir);
+			phaseOffset = Lag.ar(phaseOffset, lagTime);
+			phaseOffset = phaseOffset.min(bufFrames);
+			phaseRd = phaseWr + bufFrames - phaseOffset;
+
+			output = BufRd.ar(2, buf, phaseRd);
+			input = input + (feedback * output);
+			BufWr.ar(input, buf, phaseWr);
+
+			Out.ar(out, output * level);
+		});
+	}
+}
+
+

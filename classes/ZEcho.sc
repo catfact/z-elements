@@ -132,11 +132,10 @@ ZEchoSlewMod : ZEcho
 
 	*initClass {
 		synthDef = SynthDef.new(\ZEchoSlewMod, {
-			arg buf, in, out, level=1, time=1, feedback=0, lagTime=0.25, slewRateLimitUp=2, slewRateLimitDown=3;
+			arg buf, in, out, level=1, time=1, feedback=0, lagTime=0.25, slewRateLimit=2;
 
 			var input, output;
-			var phaseRd, phaseWr, phaseOffset, bufFrames;
-
+			var phaseRd, phaseWr, phaseOffset, bufFrames, slewRateLimitUp, slewRateLimitDown;
 
 			bufFrames = BufFrames.ir(buf);
 
@@ -144,8 +143,9 @@ ZEchoSlewMod : ZEcho
 
 			phaseWr = Phasor.ar(end: BufFrames.ir(buf));
 			phaseOffset = K2A.ar(time * SampleRate.ir);
-
-			phaseOffset = Slew.ar(phaseOffset, slewRateLimitUp*SampleRate.ir, slewRateLimitDown*SampleRate.ir);
+			slewRateLimitUp = (slewRateLimit+1) * SampleRate.ir;
+			slewRateLimitDown = (slewRateLimit-1) * SampleRate.ir;
+			phaseOffset = Slew.ar(phaseOffset, slewRateLimitUp, slewRateLimitDown);
 			phaseOffset = Lag.ar(phaseOffset, lagTime);
 			phaseOffset = phaseOffset.min(bufFrames);
 			phaseRd = phaseWr + bufFrames - phaseOffset;
@@ -158,5 +158,3 @@ ZEchoSlewMod : ZEcho
 		});
 	}
 }
-
-

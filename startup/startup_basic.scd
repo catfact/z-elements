@@ -8,10 +8,8 @@ s.waitForBoot {
 
 		m = ZMidiInput.new;
 
-
 		// ~test_sine = { Out.ar(c.bus[\hw_out], SinOsc.ar(110).dup * 0.1) }.play(c.group[\process]);
 		/// ~test_sine.free;
-
 
 		ZEcho.addAllSynthDefs;
 
@@ -22,7 +20,6 @@ s.waitForBoot {
 		~monitor = Synth.new(\patch_stereo, [\out, c.bus[\hw_out], \in, c.bus[\hw_in], \level, -9.dbamp], c.group[\out]);
 
 		{ z.bus[\in].scope; }.defer;
-
 
 		t = SystemClock.seconds;
 
@@ -45,8 +42,7 @@ s.waitForBoot {
 				if (interval.notNil, {
 					var ratio = interval.midiratio;
 					postln(ratio);
-					z.setSynthParam(\slewRateLimitUp, ratio + 1);
-					z.setSynthParam(\slewRateLimitDown, ratio);
+					z.setSynthParam(\slewRateLimit, ratio);
 				});
 			});
 		});

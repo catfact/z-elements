@@ -10,6 +10,6 @@ for example, on macOS:
 git clone git@github.com:catfact/z-elements ~/code/z-elements
 cd ~/Library/Application\ Support/SuperCollider
 ln -s ~/code/z-elements/classes ./Extensions/z-elements-classes
-ln -s ~/code/z-elements/startup ./startup-basic.scd
+ln -s ~/code/z-elements/startup/startup-basic.scd ./startup.scd
 ```
 

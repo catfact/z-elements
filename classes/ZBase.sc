@@ -121,9 +121,10 @@ ZAudioContext {
 			});
 			server.sync;
 			testInputBuffer = Buffer.read(server, soundFilePath);
+			server.sync;
 			testInputSynth = {
 				Out.ar(bus[\hw_in], \level.kr(1.0) *
-					if (testInputBuffer.numChannels > 1, {
+					if (testInputBuffer.numChannels < 2, {
 						Pan2.ar(PlayBuf.ar(1, testInputBuffer, loop:1), 0)
 					}, {
 						PlayBuf.ar(2, testInputBuffer, loop:1)
@@ -188,10 +189,8 @@ ZStereoAuxLoop {
 		patch[\dry].set(\level, dryLevel);
 	}
 
-	/// set the stereo balance of wet / dry signal
-	// position in [-1, 1]
-	setDryBalance { arg position, equalPower=true;
-		var l, r, scale;
+	*setBalance { arg position, equalPower=true;
+		var l, r;
 		if (equalPower, {
 			position = position.linlin(-1, 1, 0, pi/2);
 			l = cos(position);
@@ -200,16 +199,18 @@ ZStereoAuxLoop {
 			l = position.linlin(-1, 1, 1, 0);
 			r = position.linlin(-1, 1, 0, 1);
 		});
-
+		^[l, r]
 	}
-}
 
+	/// set the stereo balance of wet / dry signal
+	// position in [-1, 1]
+	setDryBalance { arg position, equalPower=true;
+		var lr = ZStereoAuxLoop.setBalance(position, equalPower);
+		patch[\dry].set(\leftLevel, lr[0], \rightLevel, lr[1]);
+	}
 
-/// simple MIDI input glue
-ZMidiInput {
-	*new { ^super.new.init }
-
-	init {
-
+	setWetBalance { arg position, equalPower=true;
+		var lr = ZStereoAuxLoop.setBalance(position, equalPower);
+		patch[\wet].set(\leftLevel, lr[0], \rightLevel, lr[1]);
 	}
 }

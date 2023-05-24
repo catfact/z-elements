@@ -145,12 +145,12 @@ ZAudioContext {
 	}
 }
 
-/// ZStereoEffectLoop
+/// ZStereoFxLoop
 // given a ZAudioContext,
 // this maintains an effected bus (`fx`) between the hardware ins and outs,
 // and controls and a dry/wet balance in addition to overall level
 // synths or classes can treat the fx bus as an insert using `ReplaceOut`
-ZStereoAuxLoop {
+ZStereoFxLoop {
 	var <context; // an instance of ZAudioContext
 	var <fxBus;
 	var <patch;
@@ -174,6 +174,10 @@ ZStereoAuxLoop {
 
 		patch[\dry] = Synth.new(\patch_stereo, [
 			\in, context.bus[\hw_in], \out, context.bus[\hw_out],
+		], context.group[\out], \addBefore);
+
+		patch[\wet] = Synth.new(\patch_stereo, [
+			\in, fxBus, \out, context.bus[\hw_out],
 		], context.group[\out], \addBefore);
 	}
 
@@ -205,12 +209,12 @@ ZStereoAuxLoop {
 	/// set the stereo balance of wet / dry signal
 	// position in [-1, 1]
 	setDryBalance { arg position, equalPower=true;
-		var lr = ZStereoAuxLoop.setBalance(position, equalPower);
+		var lr = ZStereoFxLoop.setBalance(position, equalPower);
 		patch[\dry].set(\leftLevel, lr[0], \rightLevel, lr[1]);
 	}
 
 	setWetBalance { arg position, equalPower=true;
-		var lr = ZStereoAuxLoop.setBalance(position, equalPower);
+		var lr = ZStereoFxLoop.setBalance(position, equalPower);
 		patch[\wet].set(\leftLevel, lr[0], \rightLevel, lr[1]);
 	}
 }

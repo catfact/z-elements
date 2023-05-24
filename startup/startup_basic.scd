@@ -1,6 +1,7 @@
 s = Server.default;
+
 s.waitForBoot {
 	Routine {
-		c = ZAudioContext.new;
+		c = ZAudioContext.new(s);
 	}.play;
 }

@@ -70,7 +70,7 @@ ZAudioContext {
 		}).send(server);
 
 		SynthDef.new(\adc_pan, {
-			var snd = In.ar(\in.kr, 1) * \level.kr(1, \levelLag.kr(patchLevelLagTime));
+			var snd = SoundIn.ar(\in.kr(0), 1) * \level.kr(1, \levelLag.kr(patchLevelLagTime));
 			Out.ar(\out.kr, Pan2.ar(snd, \pan.kr(0, \panLag.kr(patchLevelLagTime))));
 		}).send(server);
 
@@ -155,7 +155,7 @@ ZStereoFxLoop {
 	var <fxBus;
 	var <patch;
 
-	var <dryLevel, <wetLevel;
+	var <dryLevel, <wetLevel, <mainLevel=1;
 
 	*new {
 		arg context;
@@ -185,12 +185,18 @@ ZStereoFxLoop {
 	/// set the wet/dry levels directly
 	setWetLevel { arg level;
 		wetLevel = level;
-		patch[\wet].set(\level, wetLevel);
+		patch[\wet].set(\level, wetLevel * mainLevel);
 	}
 
 	setDryLevel { arg level;
 		dryLevel = level;
-		patch[\dry].set(\level, dryLevel);
+		patch[\dry].set(\level, dryLevel * mainLevel);
+	}
+
+	setMainLevel { arg level;
+		mainLevel = level;
+		patch[\wet].set(\level, wetLevel * mainLevel);
+		patch[\dry].set(\level, dryLevel * mainLevel);
 	}
 
 	*setBalance { arg position, equalPower=true;
@@ -218,3 +224,48 @@ ZStereoFxLoop {
 		patch[\wet].set(\leftLevel, lr[0], \rightLevel, lr[1]);
 	}
 }
+
+
+/// connect to a single MIDI input device and provide glue functions
+ZSimpleMidiControl {
+	var <port, <dev;
+	var <ccVal;
+	var <ccFunc; // array of functions
+
+	var <>verbose = false;
+	var <>channel = nil;
+
+	*new { arg deviceName=nil, portName=nil, connectAll=false;
+		^super.new.init(deviceName, portName, connectAll);
+	}
+
+	init {
+		arg deviceName, portName, connectAll;
+		MIDIClient.init;
+
+		if (connectAll, {
+			MIDIIn.connectAll;
+		}, {
+			var endpoint = MIDIIn.findPort(deviceName, portName);
+			if (endpoint.isNil, {
+				postln ("ERROR: couldn't open device and port: " ++ deviceName ++ ", " ++ portName);
+			});
+		});
+
+		ccFunc = Array.newClear(128);
+
+		MIDIIn.addFuncTo(\control, { arg uid, chan, num, val;
+			if (channel.isNil || (chan == channel), {
+				if (verbose, { [uid, chan, num, val].postln; });
+				if (ccFunc[num].notNil, { ccFunc[num].value(val); });
+			});
+		});
+	}
+
+	// set a handler for a given CC numnber
+	cc { arg num, func;
+		ccFunc[num] = func;
+	}
+}
+
+

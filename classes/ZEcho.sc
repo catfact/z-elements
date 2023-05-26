@@ -1,6 +1,6 @@
 ZEchoBase {
 
-	classvar defaultBufferLength = 8.0;
+	classvar <defaultBufferLength = 8.0;
 
 	// we need a server
 	var <server;

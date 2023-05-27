@@ -1,24 +1,33 @@
 
 s = Server.default;
+
 s.options.device = "Steinberg UR-RT2";
+s.options.numInputBusChannels = 4;
 
 /// change this to your actual path
 ~elementsBasePath = "/Users/emb/code/z-elements";
 
+~hwInNumChannels = 1;
+~hwOutNumChannels = 2;
+~hwInChannelOffset = 2; // this is for my streaming setup
+~hwOutChannelOffset = 0;
 
 s.waitForBoot {
 	Routine {
 
 		/// there is probably a more elegant way to ensure that all needed synthdefs are sent only once,
 		// without writing to disk, as soon as server is booted.. but i haven't thought of it
-		ZEchoDefault.sendSynthDefs(s);
+		ZEchoBase.sendSynthDefs(s);
 		// wait until synthdefs are complete
 		s.sync;
 
 		//----------------------------
 		/// this thing owns the main input and outputs,
 		/// and a basic group order for managing synth execution sequence
-		c = ZAudioContext.new(s);
+		c = ZAudioContext.new(s,
+			~hwInNumChannels, ~hwOutNumChannels,
+			~hwInChannelOffset, ~hwOutChannelOffset);
+
 		{ c.bus[\hw_in].scope; }.defer;
 
 		/// AFAIK, supercollider lacks a simple utility to resample buffers in memory
@@ -46,11 +55,9 @@ s.waitForBoot {
 
 
 		//-----------------------
-		/// after waiting a bit, to hear the difference...
-		6.wait;
-		/// ...create a basic, off the shelf echo effect...
+		/// create a basic, off the shelf echo effect...
 		postln("adding echo");
-		~echo = ZEchoDefault.new(c.server, ~fx.fxBus, c.group[\process]);
+		~echo = ZEchoSmooth.new(c.server, ~fx.fxBus, c.group[\process]);
 		/// ... and offset the stereo balance of wet/dry to differentiate them better
 		~fx.setDryBalance(-0.8);
 		~fx.setWetBalance(0.8);
@@ -79,11 +86,9 @@ s.waitForBoot {
 
 		m.cc(10, { // pan
 			arg value;
-			// set the amount of wet/dry stereo offset
-			var offset = value.linlin(0, 127, 0, 1);
-			postln("set stereo offset: " ++ offset);
-			~fx.setWetBalance(offset);
-			~fx.setDryBalance(-1 * offset);
+			var lagTime =  value.linexp(0, 127, 0.05, 2);
+			postln("lag time: " ++ lagTime);
+			~echo.setSynthControl(\delayTimeLag, lagTime);
 		});
 
 

@@ -30,16 +30,10 @@ s.waitForBoot {
 			~hwInNumChannels, ~hwOutNumChannels,
 			~hwInChannelOffset, ~hwOutChannelOffset);
 
-		{ c.bus[\hw_in].scope; }.defer;
-
 		/// AFAIK, supercollider lacks a simple utility to resample buffers in memory
 		/// easiest to ensure that file SR matches
 
-		c.playTestInputLoop(~elementsBasePath ++ "/resources/dont_explain_short_48k.wav");
-
-		~comp = Synth.new(\ZCompandStereo, [
-			\bus, c.bus[\hw_in]
-		], c.group[\in], \addAfter);
+		//c.playTestInputLoop(~elementsBasePath ++ "/resources/dont_explain_short_48k.wav");
 
 		// expander only
 		~comp.set(\slopeBelow, 100);
@@ -59,7 +53,7 @@ s.waitForBoot {
 		s.sync;
 		~fx.setDryLevel(1);
 		~fx.setWetLevel(0);
-		{ ~fx.fxBus.scope }.defer;
+		//{ ~fx.fxBus.scope }.defer;
 
 
 		///----------------------------
@@ -68,6 +62,23 @@ s.waitForBoot {
 		// uncomment to see raw endpoint, channel, data values
 		// m.verbose = true;
 
+		//-----------------------
+		/// create an echo effect with feedback companding
+		postln("adding echo");
+		~echo = ZEchoFeedbackCompand.new(c.server, ~fx.fxBus, c.group[\process]);
+		~echo.setDelayTime(4);
+		~echo.setFeedbackLevel(0.8);
+
+//		{ ~echo.feedbackBus.scope }.defer;
+		{ ~echo.analysisBus.scope }.defer;
+
+		/// ... and offset the stereo balance of wet/dry to differentiate them better
+		~fx.setDryBalance(-0.5);
+		~fx.setWetBalance(0.5);
+
+		~fx.setDryLevel(0.5);
+		~fx.setWetLevel(0.5);
+
 		//---------------------------------------
 		// add some MIDI controls
 
@@ -75,17 +86,22 @@ s.waitForBoot {
 			arg value;
 			var threshold = value.linlin(0, 127, -60, 0);
 			postln("threshold: " ++ threshold ++ " dB");
-			~comp.set(\threshold, threshold);
+			~echo.setCompandControl(\threshold, threshold);
 		});
 
 		m.cc(7, { // volume
 			arg value;
+			var attack = value.linexp(0, 127, 0.02, 4);
+			postln("attack: " ++ attack );
+			~echo.setCompandControl(\attack, attack);
 		});
 
 		m.cc(10, { // pan
 			arg value;
+			var release = value.linexp(0, 127, 0.02, 4);
+			postln("release: " ++ release );
+			~echo.setCompandControl(\release, release);
 		});
-
 
 		m.cc(12, { // "effect control 1"
 			arg value;

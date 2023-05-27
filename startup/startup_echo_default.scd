@@ -32,9 +32,12 @@ s.waitForBoot {
 
 		/// AFAIK, supercollider lacks a simple utility to resample buffers in memory
 		/// easiest to ensure that file SR matches
-		/*
+
 		c.playTestInputLoop(~elementsBasePath ++ "/resources/dont_explain_short_48k.wav");
-		*/
+
+		~comp = Synth.new(\ZCompand, [
+
+		], c.group[\in], \addAfter);
 
 		//----------------------------
 		/// this thing will make a "dry" connection from main input to output,
@@ -59,8 +62,12 @@ s.waitForBoot {
 		postln("adding echo");
 		~echo = ZEchoSmooth.new(c.server, ~fx.fxBus, c.group[\process]);
 		/// ... and offset the stereo balance of wet/dry to differentiate them better
-		~fx.setDryBalance(-0.8);
-		~fx.setWetBalance(0.8);
+		// ~fx.setDryBalance(-0.8);
+		// ~fx.setWetBalance(0.8);
+		~fx.setDryBalance(0);
+		~fx.setWetBalance(0);
+		~fx.setDryLevel(1);
+		~fx.setWetLevel(0);
 
 		//---------------------------------------
 		// add some MIDI controls
@@ -109,6 +116,54 @@ s.waitForBoot {
 			postln("feedback level: " ++ level.ampdb ++ " dB");
 			~echo.setFeedbackLevel(level);
 		});
+
+
+		~lastNote = nil;
+		~numNotesHeld = 0;
+		~lastNoteonTime = SystemClock.seconds;
+		~ratios = [ 1, 16/15, 9/8, 6/5, 5/4, 4/3, 729/512, 3/2, 8/5, 10/6, 16/9, 15/8];
+
+		m.verbose = true;
+		m.noteon {
+			arg num, vel;
+			if (~lastNote.notNil && (~lastNote != num), {
+				var interval = (num - ~lastNote).abs;
+				var rat = ~ratios[interval % 12] * (2 ** (interval / 12).floor);
+				[ interval, rat].postln;
+				~echo.setSynthControl(\delayTimeSlewUp, rat + 1);
+				~echo.setSynthControl(\delayTimeSlewDown, rat - 1);
+			});
+			if (~numNotesHeld == 0, {
+				var now = SystemClock.seconds;
+				var deltaTime = now - ~lastNoteonTime;
+				~baseTime = deltaTime;
+				~lastNoteonTime = now;
+			});
+			~numNotesHeld = ~numNotesHeld + 1;
+			~lastNote = num;
+		};
+
+		m.noteoff {
+			~numNotesHeld = ~numNotesHeld - 1;
+		};
+
+		~baseTime = 1.0;
+
+
+		~timeSequence = Routine {
+			var ratios = [1, 3/2, 7/8];
+			var state = 0;
+			var time;
+			inf.do {
+				state = (state + 1).wrap(0, ratios.size-1);
+				time = ratios[state] * 	~baseTime;
+
+				~echo.setDelayTime(time);
+				(ratios[(state + 1).wrap(0, ratios.size-1)] * ~baseTime * 0.5).min(0.05).wait;
+				//0.2.wait;
+			}
+		}.play;
+
 
 
 	}.play;

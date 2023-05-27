@@ -229,8 +229,9 @@ ZStereoFxLoop {
 /// connect to a single MIDI input device and provide glue functions
 ZSimpleMidiControl {
 	var <port, <dev;
-	var <ccVal;
 	var <ccFunc; // array of functions
+	var <noteOnFunc;
+	var <noteOffFunc;
 
 	var <>verbose = false;
 	var <>channel = nil;
@@ -257,7 +258,24 @@ ZSimpleMidiControl {
 		MIDIIn.addFuncTo(\control, { arg uid, chan, num, val;
 			if (channel.isNil || (chan == channel), {
 				if (verbose, { [uid, chan, num, val].postln; });
-				if (ccFunc[num].notNil, { ccFunc[num].value(val); });
+				if (ccFunc[num].notNil, {
+					ccFunc[num].value(val);
+				});
+			});
+		});
+
+		MIDIIn.addFuncTo(\noteOn, { arg uid, chan, num, vel;
+			if (channel.isNil || (chan == channel), {
+				if (verbose, { [uid, chan, num, vel].postln; });
+				if (noteOnFunc.notNil, { noteOnFunc.value(num, vel); });
+			});
+		});
+
+
+		MIDIIn.addFuncTo(\noteOff, { arg uid, chan, num, vel;
+			if (channel.isNil || (chan == channel), {
+				if (verbose, { [uid, chan, num, vel].postln; });
+				if (noteOffFunc.notNil, { noteOffFunc.value(num, vel); });
 			});
 		});
 	}
@@ -265,6 +283,14 @@ ZSimpleMidiControl {
 	// set a handler for a given CC numnber
 	cc { arg num, func;
 		ccFunc[num] = func;
+	}
+
+	noteon { arg func;
+		noteOnFunc = func;
+	}
+
+	noteoff { arg func;
+		noteOffFunc = func;
 	}
 }
 

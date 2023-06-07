@@ -47,9 +47,7 @@ ZAudioContext {
 		SynthDef.new(\patch_stereo,{
 			var levelLag = \levelLag.kr(patchLevelLagTime);
 			Out.ar(\out.kr,
-				In.ar(\in.kr, 2)
-				* [\leftLevel.kr(1, levelLag), \rightLevel.kr(1, levelLag)]
-				* \level.kr(1, levelLag));
+				In.ar(\in.kr, 2) * \level.kr(1, levelLag));
 		}).send(server);
 
 		SynthDef.new(\patch_pan,{
@@ -58,15 +56,13 @@ ZAudioContext {
 		}).send(server);
 
 		SynthDef.new(\adc_mono, {
-			Out.ar(\out.kr, SoundIn.ar(\in.kr(0), 1) * \level.kr(1, \levelLag.kr(patchLevelLagTime)));
+			Out.ar(\out.kr, SoundIn.ar(\in.kr(0)) * \level.kr(1, \levelLag.kr(patchLevelLagTime)));
 		}).send(server);
 
 		SynthDef.new(\adc_stereo, {
 			var levelLag = \levelLag.kr(patchLevelLagTime);
-			Out.ar(\out.kr,
-				SoundIn.ar(\in.kr(0), 2)
-				* [\leftLevel.kr(1, levelLag), \rightLevel.kr(1, levelLag)]
-				* \level.kr(1, levelLag));
+			var in = \in.kr(0);
+			Out.ar(\out.kr, SoundIn.ar([in, in+1]) * \level.kr(1, levelLag));
 		}).send(server);
 
 		SynthDef.new(\adc_pan, {
@@ -101,7 +97,6 @@ ZAudioContext {
 			postln("panning mono HW input to main input bus");
 			Synth.new(\adc_pan, [
 				\in, hwInChannelOffset, \out, bus[\hw_in].index
-
 			], group[\in], \addBefore);
 		});
 

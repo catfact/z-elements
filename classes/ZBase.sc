@@ -9,7 +9,7 @@ ZAudioContext {
 	// note that this only takes effect at class initialization time (effectively constant)
 	classvar <patchLevelLagTime = 0.05;
 
-	// the Server!
+	/// the Server!
 	var <server;
 
 	/// input and output channel
@@ -47,9 +47,7 @@ ZAudioContext {
 		SynthDef.new(\patch_stereo,{
 			var levelLag = \levelLag.kr(patchLevelLagTime);
 			Out.ar(\out.kr,
-				In.ar(\in.kr, 2)
-				* [\leftLevel.kr(1, levelLag), \rightLevel.kr(1, levelLag)]
-				* \level.kr(1, levelLag));
+				In.ar(\in.kr, 2) * \level.kr(1, levelLag));
 		}).send(server);
 
 		SynthDef.new(\patch_pan,{
@@ -58,15 +56,13 @@ ZAudioContext {
 		}).send(server);
 
 		SynthDef.new(\adc_mono, {
-			Out.ar(\out.kr, SoundIn.ar(\in.kr(0), 1) * \level.kr(1, \levelLag.kr(patchLevelLagTime)));
+			Out.ar(\out.kr, SoundIn.ar(\in.kr(0)) * \level.kr(1, \levelLag.kr(patchLevelLagTime)));
 		}).send(server);
 
 		SynthDef.new(\adc_stereo, {
 			var levelLag = \levelLag.kr(patchLevelLagTime);
-			Out.ar(\out.kr,
-				SoundIn.ar(\in.kr(0), 2)
-				* [\leftLevel.kr(1, levelLag), \rightLevel.kr(1, levelLag)]
-				* \level.kr(1, levelLag));
+			var in = \in.kr(0);
+			Out.ar(\out.kr, SoundIn.ar([in, in+1]) * \level.kr(1, levelLag));
 		}).send(server);
 
 		SynthDef.new(\adc_pan, {
@@ -78,11 +74,11 @@ ZAudioContext {
 
 		/// groups
 		group = Dictionary.new;
-		// group to hold (internal) input patches
+		// group to hold input patches
 		group[\in] = Group.new(server);
 		// group to hold processing synths
 		group[\process] = Group.after(group[\in]);
-		// group to hold (internal) output patches
+		// group to hold output patches
 		group[\out] = Group.after(group[\out]);
 
 		/// busses
@@ -144,87 +140,6 @@ ZAudioContext {
 		});
 	}
 }
-
-/// ZStereoFxLoop
-// given a ZAudioContext,
-// this maintains an effected bus (`fx`) between the hardware ins and outs,
-// and controls and a dry/wet balance in addition to overall level
-// synths or classes can treat the fx bus as an insert using `ReplaceOut`
-ZStereoFxLoop {
-	var <context; // an instance of ZAudioContext
-	var <fxBus;
-	var <patch;
-
-	var <dryLevel, <wetLevel, <mainLevel=1;
-
-	*new {
-		arg context;
-		^super.newCopyArgs(context).init;
-	}
-
-	init {
-
-		fxBus = Bus.audio(context.server, 2);
-
-		patch = Dictionary.new;
-
-		patch[\in] = Synth.new(\patch_stereo, [
-			\in, context.bus[\hw_in], \out, fxBus
-		], context.group[\in], \addAfter);
-
-		patch[\dry] = Synth.new(\patch_stereo, [
-			\in, context.bus[\hw_in], \out, context.bus[\hw_out],
-		], context.group[\out], \addBefore);
-
-		patch[\wet] = Synth.new(\patch_stereo, [
-			\in, fxBus, \out, context.bus[\hw_out],
-		], context.group[\out], \addBefore);
-	}
-
-
-	/// set the wet/dry levels directly
-	setWetLevel { arg level;
-		wetLevel = level;
-		patch[\wet].set(\level, wetLevel * mainLevel);
-	}
-
-	setDryLevel { arg level;
-		dryLevel = level;
-		patch[\dry].set(\level, dryLevel * mainLevel);
-	}
-
-	setMainLevel { arg level;
-		mainLevel = level;
-		patch[\wet].set(\level, wetLevel * mainLevel);
-		patch[\dry].set(\level, dryLevel * mainLevel);
-	}
-
-	*setBalance { arg position, equalPower=true;
-		var l, r;
-		if (equalPower, {
-			position = position.linlin(-1, 1, 0, pi/2);
-			l = cos(position);
-			r = sin(position);
-		}, {
-			l = position.linlin(-1, 1, 1, 0);
-			r = position.linlin(-1, 1, 0, 1);
-		});
-		^[l, r]
-	}
-
-	/// set the stereo balance of wet / dry signal
-	// position in [-1, 1]
-	setDryBalance { arg position, equalPower=true;
-		var lr = ZStereoFxLoop.setBalance(position, equalPower);
-		patch[\dry].set(\leftLevel, lr[0], \rightLevel, lr[1]);
-	}
-
-	setWetBalance { arg position, equalPower=true;
-		var lr = ZStereoFxLoop.setBalance(position, equalPower);
-		patch[\wet].set(\leftLevel, lr[0], \rightLevel, lr[1]);
-	}
-}
-
 
 /// connect to a single MIDI input device and provide glue functions
 ZSimpleMidiControl {

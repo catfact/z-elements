@@ -29,22 +29,35 @@ s.waitForBoot { Routine {
 	~buf = Buffer.alloc(s, ~bufdur * s.sampleRate, 2);
 	~writePhaseBus = Bus.control(s, 1);
 
-	~period = 1/200;
+	~period = 1/4;
+	~overlap = 3;
 	~delay = 1;
-	~duration = ~period * 2;
 
-	/*
-	ZGranularHeresy.synthDef.do({ arg def;
-		def.name.postln;
-		def.allControlNames.do({ arg ctl; ctl.name.postln; });
-	});
-	*/
+	~grainInBus = Bus.audio(s, 2);
+	~grainOutBus = Bus.audio(s, 2);
+	~feedbackBus = Bus.audio(s, 2);
+
+	~grainInput = {
+		var hwIn = In.ar(c.bus[\hw_in], 2);
+		var feedbackIn = InFeedback.ar(~feedbackBus.index, 2);
+		feedbackIn = LPF.ar(HPF.ar(feedbackIn, \feedbackHpf.kr(100)), \feedbackLpf.kr(8000));
+		Out.ar(~grainInBus, hwIn + (\feedbackLevel.kr(0) * feedbackIn));
+	}.play(target:c.group[\in]);
+
+	~grainOutput = {
+		Out.ar(c.bus[\hw_out], In.ar(~grainOutBus.index, 2));
+	}.play(target:c.group[\out], addAction:\addBefore);
+
+	~grainInput.set(\feedbackLevel, 0.5);
+
+	s.sync;
+
 	// record synth
 	~write = Synth.new(\ZGranularHeresy_Write, [
-		\input, c.bus[\hw_in],
+		\input, ~grainInBus.index,
 		\buf, ~buf.bufnum,
 		\phaseOut, ~writePhaseBus.index
-	],target:c.group[\in] );
+	], target:~grainInput, addAction:\addAfter );
 
 	// envelope buffer
 	~envSignal = Signal.hammingWindow(512);
@@ -53,30 +66,76 @@ s.waitForBoot { Routine {
 	~envBuf = Buffer.loadCollection(s, ~envSignal);
 
 	~latency = 0.1;
+	~rate = 1;
+
+	~rateMulPat = Pseq([1, 2, -1, 3/2], inf).asStream;
+	~lpfMulPat = Pseq([1, 2, 3/2, 6/5], inf).asStream;
+	~hpfMulPat = Pseq([1, 2, 5/4], inf).asStream;
+	~periodMulPat = Pseq([1, 2, 3/2, 3/4], inf).asStream;
+	~panPat = Pseq(Array.series(5, -0.8, 0.4), inf).asStream;
+	~fbLevelPat = Pseq([0, 0, 1, 0, 0, 1], inf).asStream;
+
+	~lpfBase = 2000;
+	~hpfBase = 100;
 
 	s.sync;
-	{ ~envBuf.plot }.defer;
+
+	~grainInput.set(\feedbackLevel, -8.dbamp);
+
+	//{ ~envBuf.plot }.defer;
+
+
 	// grain scheduler
 	r = Routine { inf.do {
-		var writePhase = ~writePhaseBus.getSynchronous;
-		var durFrames = ~duration * s.sampleRate;
-		var grainPhase = (writePhase - (~delay * s.sampleRate)).wrap(0, ~buf.numFrames - (durFrames+1));
+		var writePhase, durFrames, startFrame, endFrame;
+		var rate = ~rate * ~rateMulPat.next;
+		var lpf = (~lpfBase * ~lpfMulPat.next).min(14000);
+		var hpf = (~hpfBase * ~hpfMulPat.next).min(1000);
+		var period = ~period * ~periodMulPat.next;
+		var duration = period * ~overlap;
+		var pan = ~panPat.next;
+		var feedbackPan = pan * -1;
+		var feedbackLevel = ~fbLevelPat.next;
+
+		[rate, lpf, hpf, period].postln;
+		writePhase = ~writePhaseBus.getSynchronous;
+		durFrames = duration * s.sampleRate * rate;
+		startFrame = (writePhase - (~delay * s.sampleRate)).wrap(0, ~buf.numFrames - (durFrames+1).max(0));
+		endFrame = startFrame + durFrames;
+
 		//[writePhase, grainPhase].postln;
 		// send the message to the server with a timestamp and latency
 		// server will handle the message when its clock advances to the precise latency requested
 		// this eliminates jitter from OSC transport
 
+		/*
+		things to try:
+		 - grain pos independent of write head
+		 - ducking / modulating position if grain will cross write head
+		 - saturation
+		 - interleaving history
+		 - modulating write / preserve level
+		 - weird envelope shapes: interpolate between buffers
+		*/
+
 		s.makeBundle(~latency, {
-			Synth.new(\ZGranularHeresy_Grain1, [
+			Synth.new(\ZGranularHeresy_Grain4, [
 				\buf, ~buf.bufnum,
-				\envBuf, ~envBuf.bufnum,
-				\duration, ~duration,
-				\startFrame, grainPhase,
-				\out, c.bus[\hw_out],
-				\pan, 0.5.rand2
+				\envBuf1, ~envBuf.bufnum,
+				\envBuf2, ~envBuf.bufnum,
+				\duration, duration,
+				\endFrame, endFrame,
+				\startFrame, startFrame,
+				\out, ~grainOutBus.index,
+				\pan, pan,
+				\lpf, lpf,
+				\hpf, hpf,
+				\out2, ~feedbackBus.index,
+				\level2, feedbackLevel,
+				\pan2, feedbackPan
 			], target:c.group[\process], addAction:\addToTail);
 		});
-		~period.wait;
+		period.wait;
 	} }.play;
 
 }.play }

@@ -131,7 +131,8 @@ ZEchoDefaultGranular : ZEcho {
 
 			// the grains! array of 2x mono signals
 			var grains = [
-				BufGrain.ar(
+				GrainBuf.ar(
+					1,
 					grainTrigger,
 					\grainDuration.kr(0.2),
 					\buf1.kr,
@@ -139,7 +140,8 @@ ZEchoDefaultGranular : ZEcho {
 					readPos,       // normalized
 					4              // interpolation
 				),
-				BufGrain.ar(
+				GrainBuf.ar(
+					1,
 					grainTrigger,
 					\grainDuration.kr(0.2),
 					\buf1.kr,

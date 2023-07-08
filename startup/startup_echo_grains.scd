@@ -116,7 +116,6 @@ s.waitForBoot { Routine {
 		cond.wait;
 		analysis.postln;
 
-
 		halfoctave = ((analysis[\pitch] - 60) / 3).round;
 		octave = halfoctave * 2;
 		octave.postln;
@@ -139,7 +138,7 @@ s.waitForBoot { Routine {
 		endFrame = startFrame + durFrames;
 
 		// we want to check if the grain will cross the write phasor
-		writePhaseEnd = (writePhase + (duration * s.sampleRate)).wrap(0, ~buf.numFrames);
+	/*	writePhaseEnd = (writePhase + (duration * s.sampleRate)).wrap(0, ~buf.numFrames);
 		if (writePhaseEnd < writePhase, {
 			// write phase will have wrapped, need to check two regions of write phase
 			// - write phase region 1:
@@ -151,6 +150,16 @@ s.waitForBoot { Routine {
 			// write phase will not wrap
 			//...
 		});
+*/
+
+		/*
+		If rate < 1:
+		  If(r < w) { r = r + bufsize};
+		  If(w + durframes > r + (rate * durframes)) then boom;
+        If rate > 1:
+          If(w < r) { w = w + bufsize};
+          If( r + (rate * durframes) > w + durframes) then boom
+		*/
 
 		if(willCross, {
 			// silence the grain

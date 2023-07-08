@@ -31,7 +31,7 @@ ZGranularHeresy : ZEcho {
 				Out.ar(\out.kr(0), Pan2.ar(snd * \level.ir(1), \pan.ir(0)));
 			}),
 
-            // add HPF / LPF
+			// add HPF / LPF
 			SynthDef.new(\ZGranularHeresy_Grain2, {
 				var buf = \buf.ir;
 				var envBuf = \envBuf.ir;
@@ -87,7 +87,111 @@ ZGranularHeresy : ZEcho {
 				snd = LPF.ar(HPF.ar(snd, \feedbackHpf.kr(100)), \feedbackLpf.kr(8000));
 				Out.ar(\out.kr(0), Pan2.ar(snd * \level.ir(1), \pan.ir(0)));
 				Out.ar(\out2.kr(0), Pan2.ar(snd * \level2.ir(1), \pan2.ir(0)));
-			})
+			}),
+
+			SynthDef.new(\ZGranularHeresy_Analyzer, {
+				var input = In.ar(\in.kr(0));
+				// lots of defaults to override in all these...
+				var amplitude = Amplitude.kr(input);
+				var pitch = Pitch.kr(input);
+				var fft = FFT(LocalBuf(2048), input);
+				var centroid = SpecCentroid.kr(fft);
+				var flatness = SpecFlatness.kr(fft);
+				var pcile = SpecPcile.kr(fft, \pcile.kr(0.9));
+				var zerox = A2K.kr(ZeroCrossing.ar(input));
+				Out.kr(\out.kr, [
+					amplitude, flatness, pitch, centroid, pcile, zerox
+				]);
+			});
 		);
+	}
+}
+
+ZGranularHeresy_HistoryPlot {
+	classvar <paramCount = 6;
+	classvar <>historyCount = 128;
+	classvar <>maxTime = 32;
+
+	var <analysisBus;
+	var <viewParent;
+	var <bounds;
+	var <view;
+	var <data;
+	var <frameInterval;
+	var <tickRoutine;
+
+	*new { arg analysisBus, viewParent, bounds;
+		^super.newCopyArgs(analysisBus, viewParent, bounds).init;
+	}
+
+	init {
+		"param count: ".postln;
+		paramCount.postln;
+		bounds.postln;
+		data = Array.fill(paramCount, { LinkedList.new(historyCount) });
+
+		view = Array.fill(paramCount, {
+			arg i;
+			var b, h;
+			b = bounds.copy;
+			b.postln;
+			h = bounds.height / paramCount;
+			//			h.postln;
+			b.height = h;
+			b.top = bounds.top + (h * i);
+			"input bounds: ".postln;
+			bounds.postln;
+
+			"view bounds: ".postln;
+			b.postln;
+			MultiSliderView.new(viewParent, b)
+			.elasticMode_(1)
+			.gap_(0)
+			.thumbSize_(0)
+			.drawRects_(false)
+			.drawLines_(true)
+			.isFilled_(true)
+			.showIndex_(false)
+			.strokeColor_(Color.white)
+			.fillColor_(Color.gray)
+			.backColor_(Color.black)
+		});
+
+		frameInterval = 1 / 15;
+
+		tickRoutine = Routine {
+			var displayValue = Array.newClear(paramCount);
+			var cond = Condition.new;
+			inf.do {
+				// fetch all bus values;
+				cond.test = false;
+				analysisBus.getn(6, { arg values;
+					values.postln;
+					[0, 1].do({ arg idx;
+						displayValue[idx] = values[idx];
+					});
+					[2, 3, 4, 5].do({ arg idx;
+//						[idx, values[idx]].postln;
+//						displayValue[idx] = values[idx].cpsmidi.linlin(20, 120);
+					});
+
+					cond.test = true;
+					cond.signal;
+				});
+				cond.wait;
+				cond.test = false;
+				// update the history and the views
+				paramCount.do({ arg i;
+					while ({data[i].size >= historyCount}, {
+						data[i].popFirst;
+					});
+					data[i].add(displayValue[i]);
+					//[i, data[i]].postln;
+					// { view[i].value = data[i].asArray; }.defer;
+				});
+				{ viewParent.refresh; }.defer;
+				frameInterval.wait;
+			}
+		}.play;
 	}
 }

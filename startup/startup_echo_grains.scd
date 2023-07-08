@@ -48,8 +48,6 @@ s.waitForBoot { Routine {
 		Out.ar(c.bus[\hw_out], In.ar(~grainOutBus.index, 2));
 	}.play(target:c.group[\out], addAction:\addBefore);
 
-	~grainInput.set(\feedbackLevel, 0.5);
-
 	s.sync;
 
 	// record synth
@@ -84,24 +82,82 @@ s.waitForBoot { Routine {
 
 	//{ ~envBuf.plot }.defer;
 
+	/// grain position LFO
+	~grainPosRate = 1;
+	~grainStartFrame = 0;
 
 	// grain scheduler
 	r = Routine { inf.do {
 		var writePhase, durFrames, startFrame, endFrame;
-		var rate = ~rate * ~rateMulPat.next;
+		var rate = 1; // = ~rate * ~rateMulPat.next;
 		var lpf = (~lpfBase * ~lpfMulPat.next).min(14000);
 		var hpf = (~hpfBase * ~hpfMulPat.next).min(1000);
 		var period = ~period * ~periodMulPat.next;
 		var duration = period * ~overlap;
 		var pan = ~panPat.next;
 		var feedbackPan = pan * -1;
-		var feedbackLevel = ~fbLevelPat.next;
+		var feedbackLevel = 0; // = ~fbLevelPat.next;
+		var writePhaseEnd;
+		var willCross;
+		var analysis, pitch;
+		var cond;
+		var halfoctave, octave;
 
-		[rate, lpf, hpf, period].postln;
+		cond = Condition.new;
+		cond.test = false;
+		~analysis_bus.getn(6, { arg vals;
+			analysis = Dictionary.newFrom([
+				\amp, vals[0].ampdb.max(-80),
+				\pitch, vals[2].cpsmidi.max(0)
+			]);
+			cond.test = true;
+			cond.signal;
+		});
+		cond.wait;
+		analysis.postln;
+
+
+		halfoctave = ((analysis[\pitch] - 60) / 3).round;
+		octave = halfoctave * 2;
+		octave.postln;
+		rate = if(halfoctave % 2 > 0, { 1.5}, {1}) * (2 ** octave);
+		feedbackLevel = analysis[\amp].linlin(-80, -20, -16, -4).dbamp;
+
+		[rate, feedbackLevel].postln;
+
+		// [rate, lpf, hpf, period].postln;
+
+		// FIXME: `getSynchronous` is adding unknown and implicit timing jitter
+		// to our grainscheduling routine
 		writePhase = ~writePhaseBus.getSynchronous;
+
 		durFrames = duration * s.sampleRate * rate;
-		startFrame = (writePhase - (~delay * s.sampleRate)).wrap(0, ~buf.numFrames - (durFrames+1).max(0));
+
+		startFrame = ~grainStartFrame;
+
+		//startFrame = (writePhase - (~delay * s.sampleRate)).wrap(0, ~buf.numFrames - (durFrames+1).max(0));
 		endFrame = startFrame + durFrames;
+
+		// we want to check if the grain will cross the write phasor
+		writePhaseEnd = (writePhase + (duration * s.sampleRate)).wrap(0, ~buf.numFrames);
+		if (writePhaseEnd < writePhase, {
+			// write phase will have wrapped, need to check two regions of write phase
+			// - write phase region 1:
+			//   -- will grain wrap?
+			// - yes: check two regions playback against two regions write
+			// - no: check one region read vs 2 regions write
+			//
+		}, {
+			// write phase will not wrap
+			//...
+		});
+
+		if(willCross, {
+			// silence the grain
+			// or move it
+		});
+
+		~grainStartFrame = ~grainStartFrame + (~grainPosRate * period * s.sampleRate);
 
 		//[writePhase, grainPhase].postln;
 		// send the message to the server with a timestamp and latency
@@ -110,13 +166,15 @@ s.waitForBoot { Routine {
 
 		/*
 		things to try:
-		 - grain pos independent of write head
-		 - ducking / modulating position if grain will cross write head
-		 - saturation
-		 - interleaving history
-		 - modulating write / preserve level
-		 - weird envelope shapes: interpolate between buffers
+		- grain pos independent of write head
+		- ducking / modulating position if grain will cross write head
+		- saturation
+		- interleaving history
+		- modulating write / preserve level
+		- weird envelope shapes: interpolate between buffers
+		- analysis-driven grain generation
 		*/
+
 
 		s.makeBundle(~latency, {
 			Synth.new(\ZGranularHeresy_Grain4, [
@@ -138,5 +196,24 @@ s.waitForBoot { Routine {
 		period.wait;
 	} }.play;
 
+	// analysis module
+	~analysis_bus = Bus.control(s, 6);
+
+	~analysis = Synth.new(\ZGranularHeresy_Analyzer, [
+		\in, c.bus[\hw_in],
+		\out, ~analysis_bus.index
+	], c.group[\in]);
+
+	// {
+	// 	w = Window("z-granular-heresy", Rect(100, 200, 400, 520), false);
+	// 	ZGranularHeresy_HistoryPlot.maxTime = 8;
+	// 	v = ZGranularHeresy_HistoryPlot.new(~analysis_bus, w.view, Rect(0, 0, 400, 520));
+	//
+	// 	w.front;
+	// }.defer;
+
 }.play }
 
+/*
+~feedbackBus.scope;
+*/

@@ -144,7 +144,7 @@ ZEchoDefaultGranular : ZEcho {
 					1,
 					grainTrigger,
 					\grainDuration.kr(0.2),
-					\buf1.kr,
+					\buf2.kr,
 					\rate.kr(1),
 					readPos,
 					4

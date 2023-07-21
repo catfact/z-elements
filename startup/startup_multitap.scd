@@ -17,17 +17,13 @@ s.waitForBoot { Routine {
 	);
 	s.sync;
 
-	ZMultTap.sendSynthDefs(s);
+	ZMultiTap.sendSynthDefs(s);
 	s.sync;
 
-	// create
+	n = 2;
+	z = ZMultiTap.new(n, c);
 
-	//// GUI!
-	// orange/blue pallette (tritanopia-friendly)
-	~c1 = Color.fromHexString("FFC20A");
-	~c2 = Color.fromHexString("0C7BDC");
 
-	g = ZGui.new;
 
 }.play }
 

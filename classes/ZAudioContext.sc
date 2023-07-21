@@ -43,7 +43,7 @@ ZAudioContext {
 		SynthDef.new(\patch_xfade, {
 			var snd = SelectX.ar(\pos.kr(0), In.ar(\in.kr, 2));
 			Out.ar(\out.kr(0), snd * \level.kr(1, patchLevelLagTime));
-		});
+		}).send(server);
 
 		SynthDef.new(\patch_mono, {
 			Out.ar(\out.kr(0), In.ar(\in.kr, 1) * \level.kr(1, patchLevelLagTime));

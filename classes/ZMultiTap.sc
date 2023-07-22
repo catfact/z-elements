@@ -2,13 +2,14 @@
 // mono in, stereo out
 ZMultiTap {
 	// buffer duration for all instances
-	classvar bufferDuration = 32.0;
+	classvar <>bufferDuration = 32.0;
 
 	// how many taps
 	var <numTaps;
 
 	// mono buffer
 	var <buffer;
+
 	// each of these is a Dictionary collecting like objects
 	var <synth;
 	var <group;
@@ -29,13 +30,19 @@ ZMultiTap {
 
 		// read from buffer, read from output phase, output to mono bus
 		SynthDef.new(\ZTaps_Read, {
+			var delayTime, phaseOffset, readPhase, output;
 			var buf = \buf.kr;
+
+			var delayTimeSlewUp = \delayTimeSlewUp.kr(2);
+			var delayTimeSlewDown = \delayTimeSlewDown.kr(1);
+			var inWritePhase = \inWritePhase.kr;
 			var bufFrames = BufFrames.kr(buf);
-			var writePhase = In.ar(\inWritePhase.kr);
-			var delayTime = Lag.ar(K2A.ar(\delayTime.kr(1)), 0.2);
-			var phaseOffset = delayTime * SampleRate.ir;
-			var readPhase = (writePhase - phaseOffset).wrap(0, bufFrames);
-			var output = BufRd.ar(1, buf, readPhase, interpolation:4);
+			var writePhase = In.ar(inWritePhase);
+			delayTime = Lag.ar(K2A.ar(\delayTime.kr(1)), 1);
+			delayTime = Slew.ar(delayTime, delayTimeSlewUp, delayTimeSlewDown);
+			phaseOffset = delayTime * SampleRate.ir;
+			readPhase = (writePhase - phaseOffset).wrap(0, bufFrames);
+			output = BufRd.ar(1, buf, readPhase, interpolation:4);
 			Out.ar(\out.kr, output * \level.kr(1));
 		}).send(server);
 	}

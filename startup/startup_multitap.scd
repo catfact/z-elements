@@ -25,12 +25,6 @@ s.waitForBoot { Routine {
 	z = ZMultiTap.new(n, c);
 	s.sync;
 
-	~show_phase = {
-		var writePhase = In.ar(z.bus[\writePhase]);
-		writePhase.poll;
-		Silent.ar
-	}.play(s, addAction:\addToTail);
-	~show_phase.free;
 
 	// a volume taper. why not try an s-curve...
 	~taper = { arg midi;
@@ -41,7 +35,7 @@ s.waitForBoot { Routine {
 
 	// midi controls
 	m = ZSimpleMidiInput.new(connectAll:true);
-	m.verbose = false;
+	m.verbose = true;
 
 	// these CC numbers are quite arbitrary, please change!
 	m.cc(20, { arg ccVal, chan;
@@ -77,6 +71,18 @@ s.waitForBoot { Routine {
 		var position= ccVal.linlin(0, 127, -1, 1);
 		postln("pan position 2:" ++ position);
 		z.setTapPosition(1, position)
+	});
+
+	~ratioSet = [6/5, 5/4, 4/3, 3/2, 8/5, 5/3, 16/9];
+	m.cc(1, { arg ccVal;
+		var ratioIndex = ccVal.linlin(0, 127, 0, ~ratioSet.size-1);
+		var ratio = ~ratioSet[ratioIndex];
+		postln("slew ratio : " ++ ratio);
+		n.do({ arg i;
+			z.synth[\tap][i].set(\delayTimeSlewUp, ratio + 1);
+			z.synth[\tap][i].set(\delayTimeSlewDown, ratio - 1);
+
+		});
 	});
 
 

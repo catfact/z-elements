@@ -29,7 +29,7 @@ ZSimpleMidiInput {
 		MIDIIn.addFuncTo(\control, { arg uid, chan, num, val;
 			if (channel.isNil || (chan == channel), {
 				if (verbose, { [uid, chan, num, val].postln; });
-				if (ccFunc[num].notNil, { ccFunc[num].value(val, chan); });
+				if (ccFunc[num].notNil, { ccFunc[num].value(val); });
 			});
 		});
 	}

@@ -24,7 +24,7 @@ s.waitForBoot { Routine {
 	n = 2;
 	z = ZMultiTap.new(n, c);
 	s.sync;
-
+	z.synth[\input].set(\pos, 1);
 
 	// a volume taper. why not try an s-curve...
 	~taper = { arg midi;

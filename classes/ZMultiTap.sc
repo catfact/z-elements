@@ -52,7 +52,9 @@ ZMultiTap {
 		SynthDef.new(\ZTaps_Filter, {
 			var bus = \bus.kr(0);
 			var input = In.ar(bus) * \inputGain.kr(1);
-			var output = Shaper.ar(\buf.kr, input) * \outputGain.kr(1);
+			var lpfHz = \lpfRatio.kr(1).reciprocal * (SampleRate.ir / 2);
+			var filtered = LPF.ar(LPF.ar(LPF.ar(input, lpfHz), lpfHz), lpfHz);
+			var output = Shaper.ar(\buf.kr, filtered) * \outputGain.kr(1);
 			output = LeakDC.ar(output);
 			ReplaceOut.ar(bus, output);
 		}).send(server);
@@ -70,7 +72,7 @@ ZMultiTap {
 		buffer = Buffer.alloc(s, s.sampleRate * bufferDuration, 1);
 
 		shapeBufferList = List.new;
-		4.do({ arg n;
+		8.do({ arg n;
 			var buf =Buffer.alloc(s, shapeBufferSize, 1, {
 				arg buf;
 				var partials = Array.fill(n+1, { arg i;

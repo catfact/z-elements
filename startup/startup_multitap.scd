@@ -58,12 +58,14 @@ s.waitForBoot { Routine {
 	});
 
 	m.cc(24, { arg ccVal;
-//		var position= ccVal.linlin(0, 127, -1, 1);
-//		postln("pan position 1:" ++ position);
-//		z.setTapPosition(0, position)
-		var select = ccVal.linlin(0, 127, 0, ZMultiTap.numChebyBufs-1);
-		postln("shape select 0: " ++ select);
-		z.setShapeSelect(0, select);
+		var position= ccVal.linlin(0, 127, -1, 1);
+		postln("pan position 1:" ++ position);
+		z.setInputBalance(0, position);
+		// var select = ccVal.linlin(0, 127, 0, ZMultiTap.numChebyBufs-1);
+		// postln("shape select 0: " ++ select);
+		// z.setShapeSelect(0, select);
+
+
 	});
 
 	m.cc(25, { arg ccVal;

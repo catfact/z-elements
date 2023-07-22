@@ -173,5 +173,9 @@ ZMultiTap {
 		synth[\filter][index].set(\shapeFocus, value);
 	}
 
+	// position in [-1, 1]
+	setInputBalance { arg position;
+		synth[\input].set(\pos, position.linlin(-1, 1, 0, 0.5));
+	}
 
 }

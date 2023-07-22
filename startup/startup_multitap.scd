@@ -35,41 +35,37 @@ s.waitForBoot { Routine {
 
 	// midi controls
 	m = ZSimpleMidiInput.new(connectAll:true);
-	m.verbose = true;
+//	m.verbose = true;
 
 	// these CC numbers are quite arbitrary, please change!
-	m.cc(20, { arg ccVal, chan;
-		if(chan == 0, {
-			// first channel
-			z.setTapLevel(0, ~taper.value(ccVal));
-		}, {
-			// do somethin else
-		});
+	m.cc(20, { arg ccVal;
+		z.setTapLevel(0, ~taper.value(ccVal));
 	});
+
 	m.cc(21, { arg ccVal; z.setTapLevel(1, ~taper.value(ccVal)); });
 
 	m.cc(22, { arg ccVal;
 		var delayTime = ccVal.linexp(0, 127, 0.1, 4.0);
-		postln("delay time 1: " ++ delayTime);
+//		postln("delay time 1: " ++ delayTime);
 		z.setTapDelay(0, delayTime);
 	});
 
 	m.cc(23, { arg ccVal;
 		// FIXME: do something nicer wit this, like just intonation ratios
 		var delayTime = ccVal.linexp(0, 127, 0.1, 4.0);
-		postln("delay time 2: " ++ delayTime);
+//		postln("delay time 2: " ++ delayTime);
 		z.setTapDelay(1, delayTime);
 	});
 
 	m.cc(24, { arg ccVal;
 		var position= ccVal.linlin(0, 127, -1, 1);
-		postln("pan position 1:" ++ position);
+//		postln("pan position 1:" ++ position);
 		z.setTapPosition(0, position)
 	});
 
 	m.cc(25, { arg ccVal;
 		var position= ccVal.linlin(0, 127, -1, 1);
-		postln("pan position 2:" ++ position);
+//		postln("pan position 2:" ++ position);
 		z.setTapPosition(1, position)
 	});
 

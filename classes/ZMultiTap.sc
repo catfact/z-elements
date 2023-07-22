@@ -3,12 +3,15 @@
 ZMultiTap {
 	// buffer duration for all instances
 	classvar <>bufferDuration = 32.0;
+	classvar <>shapeBufferSize = 2048;
 
 	// how many taps
 	var <numTaps;
 
 	// mono buffer
 	var <buffer;
+	// shape buffers
+	var <shapeBufferList;
 
 	// each of these is a Dictionary collecting like objects
 	var <synth;
@@ -43,7 +46,15 @@ ZMultiTap {
 			phaseOffset = delayTime * SampleRate.ir;
 			readPhase = (writePhase - phaseOffset).wrap(0, bufFrames);
 			output = BufRd.ar(1, buf, readPhase, interpolation:4);
-			Out.ar(\out.kr, output * \level.kr(1));
+			Out.ar(\out.kr, output * \level.kr(0));
+		}).send(server);
+
+		SynthDef.new(\ZTaps_Filter, {
+			var bus = \bus.kr(0);
+			var input = In.ar(bus) * \inputGain.kr(1);
+			var output = Shaper.ar(\buf.kr, input) * \outputGain.kr(1);
+			output = LeakDC.ar(output);
+			ReplaceOut.ar(bus, output);
 		}).send(server);
 	}
 
@@ -57,6 +68,22 @@ ZMultiTap {
 		var s = context.server;
 
 		buffer = Buffer.alloc(s, s.sampleRate * bufferDuration, 1);
+
+		shapeBufferList = List.new;
+		4.do({ arg n;
+			var buf =Buffer.alloc(s, shapeBufferSize, 1, {
+				arg buf;
+				var partials = Array.fill(n+1, { arg i;
+					if(i == n, {1}, {0})
+				});
+				postln("partials for order " ++ n ++ ": " ++ partials);
+				buf.chebyMsg(partials);
+			});
+			s.sync;
+			shapeBufferList.add(buf);
+		});
+		//...
+
 		// NB: must be initialized inside a Thread/Task/Routine
 		s.sync;
 
@@ -72,7 +99,8 @@ ZMultiTap {
 
 		group[\write] = Group.new(context.group[\process]);
 		group[\tap] = Group.after(group[\write]);
-		group[\pan] = Group.after(group[\tap]);
+		group[\filter] = Group.after(group[\tap]);
+		group[\pan] = Group.after(group[\filter]);
 		group[\output] = Group.after(group[\pan]);
 
 		synth[\input] = Synth.new(\patch_xfade, [
@@ -95,6 +123,13 @@ ZMultiTap {
 			], group[\tap]);
 		});
 
+		synth[\filter] = Array.fill(numTaps, { arg i;
+			Synth.new(\ZTaps_Filter, [
+				\buf, shapeBufferList[0],
+				\bus, bus[\tap][i],
+			], group[\filter]);
+		});
+
 		synth[\pan] = Array.fill(numTaps, { arg i;
 			Synth.new(\patch_pan, [
 				\in, bus[\tap][i],
@@ -115,6 +150,8 @@ ZMultiTap {
 	setTapPosition { arg index, position;
 		synth[\pan][index].set(\pos, position);
 	}
+
+
 
 
 }

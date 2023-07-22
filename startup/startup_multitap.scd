@@ -24,7 +24,7 @@ s.waitForBoot { Routine {
 	n = 2;
 	z = ZMultiTap.new(n, c);
 	s.sync;
-	z.synth[\input].set(\pos, 1);
+	z.synth[\input].set(\pos, 0);
 
 	// a volume taper. why not try an s-curve...
 	~taper = { arg midi;
@@ -58,15 +58,21 @@ s.waitForBoot { Routine {
 	});
 
 	m.cc(24, { arg ccVal;
-		var position= ccVal.linlin(0, 127, -1, 1);
+//		var position= ccVal.linlin(0, 127, -1, 1);
 //		postln("pan position 1:" ++ position);
-		z.setTapPosition(0, position)
+//		z.setTapPosition(0, position)
+		var select = ccVal.linlin(0, 127, 0, ZMultiTap.numChebyBufs-1);
+		postln("shape select 0: " ++ select);
+		z.setShapeSelect(0, select);
 	});
 
 	m.cc(25, { arg ccVal;
-		var position= ccVal.linlin(0, 127, -1, 1);
+//		var position= ccVal.linlin(0, 127, -1, 1);
 //		postln("pan position 2:" ++ position);
-		z.setTapPosition(1, position)
+//		z.setTapPosition(1, position)
+		var focus = ccVal.linlin(0, 127, 1, 0);
+		postln("shape focus 1: " ++ focus);
+		z.setShapeFocus(0, focus);
 	});
 
 	~ratioSet = [6/5, 5/4, 4/3, 3/2, 8/5, 5/3, 16/9];

@@ -4,6 +4,7 @@ ZMultiTap {
 	// buffer duration for all instances
 	classvar <>bufferDuration = 32.0;
 	classvar <>shapeBufferSize = 2048;
+	classvar <>numChebyBufs= 16;
 
 	// how many taps
 	var <numTaps;
@@ -50,11 +51,19 @@ ZMultiTap {
 		}).send(server);
 
 		SynthDef.new(\ZTaps_Filter, {
+			var shapeSelect = \shapeSelect.kr(0);
+			var shapeFocus = \shapeFocus.kr(1);
 			var bus = \bus.kr(0);
 			var input = In.ar(bus) * \inputGain.kr(1);
-			var lpfHz = \lpfRatio.kr(1).reciprocal * (SampleRate.ir / 2);
-			var filtered = LPF.ar(LPF.ar(LPF.ar(input, lpfHz), lpfHz), lpfHz);
-			var output = Shaper.ar(\buf.kr, filtered) * \outputGain.kr(1);
+			var shapeChannels = Array.fill(numChebyBufs, {
+				arg order;
+				var cutoff = (order + 2).reciprocal * (SampleRate.ir / 2);
+				var filtered = LPF.ar(LPF.ar(LPF.ar(input, cutoff), cutoff), cutoff);
+				/// TODO: balance each channel with a more wideband saturator (also BL'd)
+				Shaper.ar(\buf.kr + order, filtered)
+
+			});
+			var output = SelectXFocus.ar(\shapeSelect.kr(0), shapeChannels, \shapeFocus.kr(1));
 			output = LeakDC.ar(output);
 			ReplaceOut.ar(bus, output);
 		}).send(server);
@@ -71,8 +80,11 @@ ZMultiTap {
 
 		buffer = Buffer.alloc(s, s.sampleRate * bufferDuration, 1);
 
+		////
+		/// FIXME: should allocate adjacent buffers explicitly, then fill them,
+		/// so we know FOR SURE they have sequential bufnums
 		shapeBufferList = List.new;
-		8.do({ arg n;
+		numChebyBufs.do({ arg n;
 			var buf =Buffer.alloc(s, shapeBufferSize, 1, {
 				arg buf;
 				var partials = Array.fill(n+1, { arg i;
@@ -84,7 +96,6 @@ ZMultiTap {
 			s.sync;
 			shapeBufferList.add(buf);
 		});
-		//...
 
 		// NB: must be initialized inside a Thread/Task/Routine
 		s.sync;
@@ -151,6 +162,14 @@ ZMultiTap {
 
 	setTapPosition { arg index, position;
 		synth[\pan][index].set(\pos, position);
+	}
+
+	setShapeSelect{ arg index, value;
+		synth[\filter][index].set(\shapeSelect, value);
+	}
+
+	setShapeFocus{ arg index, value;
+		synth[\filter][index].set(\shapeFocus, value);
 	}
 
 

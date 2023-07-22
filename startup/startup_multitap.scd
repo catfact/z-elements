@@ -35,7 +35,7 @@ s.waitForBoot { Routine {
 
 	// midi controls
 	m = ZSimpleMidiInput.new(connectAll:true);
-//	m.verbose = true;
+	//	m.verbose = true;
 
 	// these CC numbers are quite arbitrary, please change!
 	m.cc(20, { arg ccVal;
@@ -61,17 +61,12 @@ s.waitForBoot { Routine {
 		var position= ccVal.linlin(0, 127, -1, 1);
 		postln("pan position 1:" ++ position);
 		z.setInputBalance(0, position);
-		// var select = ccVal.linlin(0, 127, 0, ZMultiTap.numChebyBufs-1);
-		// postln("shape select 0: " ++ select);
-		// z.setShapeSelect(0, select);
-
-
 	});
 
 	m.cc(25, { arg ccVal;
-//		var position= ccVal.linlin(0, 127, -1, 1);
-//		postln("pan position 2:" ++ position);
-//		z.setTapPosition(1, position)
+		//		var position= ccVal.linlin(0, 127, -1, 1);
+		//		postln("pan position 2:" ++ position);
+		//		z.setTapPosition(1, position)
 		var focus = ccVal.linlin(0, 127, 1, 0);
 		postln("shape focus 1: " ++ focus);
 		z.setShapeFocus(0, focus);
@@ -97,21 +92,6 @@ s.waitForBoot { Routine {
 	~lfo2.a = 3.9;
 	~lfo2.x = 0.9;
 
-	// ~lfo1 = ZMapLfo_User.new;
-	// ~lfo1.state = 0;
-	// ~lfo1.nextValueFunc = { arg state;
-	// 	state = (state + 0.1).wrap(0, 1);
-	// };
-	// ~lfo1.returnValueFunc = { arg state; state };
-	//
-	//
-	// ~lfo2 = ZMapLfo_User.new;
-	// ~lfo2.state = 0;
-	// ~lfo2.nextValueFunc = { arg state;
-	// 	state = (state + 0.1).wrap(0, 1);
-	// };
-	// ~lfo2.returnValueFunc = { arg state; state };
-	//
 	~lfo1.interpolationMode = 2;
 	~lfo2.interpolationMode = 2;
 
@@ -119,26 +99,106 @@ s.waitForBoot { Routine {
 	~lfo1.increment = ~lfo_update_period / 12;
 	~lfo2.increment = ~lfo_update_period / 12;
 
-//	~max_shape_select = -inf;
-
 	~lfo_update_thread = Routine { inf.do {
 		var shapeSelectValue = ~lfo1.tick.linlin(-1, 1, 0, ZMultiTap.numChebyBufs-1);
 		var shapeFocusValue= ~lfo2.tick.linlin(-1, 1, 1, 0);
-/*		if (shapeSelectValue > ~max_shape_select, {
-			~max_shape_select = shapeSelectValue;
-			postln(~max_shape_select);
-		});*/
-//		[shapeSelectValue, shapeFocusValue].postln;
+		//		[shapeSelectValue, shapeFocusValue].postln;
 		z.setShapeSelect(0, shapeSelectValue);
 		z.setShapeFocus(0, shapeFocusValue);
 		~lfo_update_period.wait;
 	} }.play;
 
-
-
 	/*
 	~lfo_update_thread.stop;
 	*/
+
+	{ FreqScope.new(400, 200, z.bus[\tap][1].index, server: s); }.defer;
+
+
+	{ z.bus[\tap][1].scope; }.defer;
+
+	s.sync;
+
+	~anaKeys = [\amp, \pitch, \centroid, \flatness, \pcile];
+	~anaCount = ~anaKeys.size;
+	~anaCount.postln;
+	~anaBus = Array.fill(n, { Bus.control(s, ~anaCount) });
+	s.sync;
+	~anaSynth = Array.fill(n, { arg i;
+		{
+			var input = In.ar(z.bus[\tap][i].index);
+			var amp = Amplitude.kr(input);
+			var pitch = Pitch.kr(input);
+			var fftBuf = LocalBuf.new(2048);
+			var fft = FFT(fftBuf, input);
+			var centroid = SpecCentroid.kr(fft);
+			var flatness = SpecFlatness.kr(fft);
+			var pcile = SpecPcile.kr(fft, \fraction.kr(0.5));
+			Out.kr(~anaBus[i].index, [
+				amp, pitch, centroid, flatness, pcile
+			]);
+		}.play(s, addAction:\addToTail);
+	});
+	s.sync;
+
+	~c0 = Color.gray;
+	~c1 = Color.fromHexString("FFC20A");
+	~c2 = Color.fromHexString("0C7BDC");
+
+	g = ZGui.new;
+	0.1.wait;
+
+	~ana_refresh_period = 1/24; //0.25;
+	~anaValues = Array.fill(n, { Dictionary.new });
+	~anaCapture = Routine { inf.do {
+		n.do ({ arg i;
+			~anaBus[i].getn(~anaCount, {
+				arg values;
+				~anaCount.do({ arg ki;
+					var k = ~anaKeys[ki];
+					~anaValues[i][k] = values[ki];
+					//postln("" ++ i ++ ": " ++ ~anaValues[i]);
+//					[
+					//	~anaValues[i][\centroid],
+					//	~anaValues[i][\flatness],
+	//					~anaValues[i][\pcile]
+		//			].postln;
+					{ g.win.refresh; }.defer;
+				});
+			});
+		});
+		//(1/15).wait;
+		~ana_refresh_period.wait;
+	} }.play;
+	/*
+	-inf.max(-60)
+	100.cpsmidi
+	8000.cpsmidi*/
+	~maxPcileMidi = 10000.cpsmidi;
+	~minPcileMidi = 500.cpsmidi;
+	{
+		g.view.drawFunc = { arg view;
+			n.do({ arg i;
+				var w = view.bounds.width / 2;
+				var h = view.bounds.height;
+				var x = i * w;
+				var pcile = ~anaValues[i][\pcile];
+				var amp = ~anaValues[i][\amp];
+				var timbreColor;
+				var timbreBlend;
+				timbreBlend = pcile.cpsmidi.linlin(~minPcileMidi, ~maxPcileMidi, 0.0, 1.0);
+				[pcile, timbreBlend].postln;
+				timbreColor = ~c1.blend(~c2, timbreBlend);
+				Pen.color_(Color.black.blend(timbreColor, amp.ampdb.max(-60).linlin(-60, 0, 0.0, 1.0)));
+				Pen.addRect(Rect(x, 0, w, h));
+				Pen.perform(\fill);
+
+			});
+		}
+	}.defer;
+
+
+	g.win.fullScreen;
 
 
 }.play }

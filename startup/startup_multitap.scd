@@ -24,7 +24,7 @@ s.waitForBoot { Routine {
 	n = 2;
 	z = ZMultiTap.new(n, c);
 	s.sync;
-	z.synth[\input].set(\pos, 0);
+	z.synth[\input].set(\pos, 1);
 
 	// a volume taper. why not try an s-curve...
 	~taper = { arg midi;
@@ -45,15 +45,15 @@ s.waitForBoot { Routine {
 	m.cc(21, { arg ccVal; z.setTapLevel(1, ~taper.value(ccVal)); });
 
 	m.cc(22, { arg ccVal;
-		var delayTime = ccVal.linexp(0, 127, 0.1, 4.0);
-//		postln("delay time 1: " ++ delayTime);
+		var delayTime = ccVal.linexp(0, 127, 0.1, 12.0);
+		postln("delay time 1: " ++ delayTime);
 		z.setTapDelay(0, delayTime);
 	});
 
 	m.cc(23, { arg ccVal;
 		// FIXME: do something nicer wit this, like just intonation ratios
-		var delayTime = ccVal.linexp(0, 127, 0.1, 4.0);
-//		postln("delay time 2: " ++ delayTime);
+		var delayTime = ccVal.linexp(0, 127, 0.1, 12.0);
+		postln("delay time 2: " ++ delayTime);
 		z.setTapDelay(1, delayTime);
 	});
 
@@ -86,6 +86,57 @@ s.waitForBoot { Routine {
 
 		});
 	});
+
+
+	~lfo1 = ZMapLfo_Cubic.new;
+	~lfo2 = ZMapLfo_Cubic.new;
+	~lfo1.a = 3.7;
+	~lfo1.x = 0.7;
+	~lfo2.a = 3.9;
+	~lfo2.x = 0.9;
+
+	// ~lfo1 = ZMapLfo_User.new;
+	// ~lfo1.state = 0;
+	// ~lfo1.nextValueFunc = { arg state;
+	// 	state = (state + 0.1).wrap(0, 1);
+	// };
+	// ~lfo1.returnValueFunc = { arg state; state };
+	//
+	//
+	// ~lfo2 = ZMapLfo_User.new;
+	// ~lfo2.state = 0;
+	// ~lfo2.nextValueFunc = { arg state;
+	// 	state = (state + 0.1).wrap(0, 1);
+	// };
+	// ~lfo2.returnValueFunc = { arg state; state };
+	//
+	~lfo1.interpolationMode = 2;
+	~lfo2.interpolationMode = 2;
+
+	~lfo_update_period = 0.05;
+	~lfo1.increment = ~lfo_update_period / 12;
+	~lfo2.increment = ~lfo_update_period / 12;
+
+//	~max_shape_select = -inf;
+
+	~lfo_update_thread = Routine { inf.do {
+		var shapeSelectValue = ~lfo1.tick.linlin(-1, 1, 0, ZMultiTap.numChebyBufs-1);
+		var shapeFocusValue= ~lfo2.tick.linlin(-1, 1, 1, 0);
+/*		if (shapeSelectValue > ~max_shape_select, {
+			~max_shape_select = shapeSelectValue;
+			postln(~max_shape_select);
+		});*/
+//		[shapeSelectValue, shapeFocusValue].postln;
+		z.setShapeSelect(0, shapeSelectValue);
+		z.setShapeFocus(0, shapeFocusValue);
+		~lfo_update_period.wait;
+	} }.play;
+
+
+
+	/*
+	~lfo_update_thread.stop;
+	*/
 
 
 }.play }

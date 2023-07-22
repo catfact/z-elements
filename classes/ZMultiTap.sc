@@ -4,7 +4,7 @@ ZMultiTap {
 	// buffer duration for all instances
 	classvar <>bufferDuration = 32.0;
 	classvar <>shapeBufferSize = 2048;
-	classvar <>numChebyBufs= 16;
+	classvar <>numChebyBufs= 9;
 
 	// how many taps
 	var <numTaps;
@@ -51,19 +51,20 @@ ZMultiTap {
 		}).send(server);
 
 		SynthDef.new(\ZTaps_Filter, {
-			var shapeSelect = \shapeSelect.kr(0);
-			var shapeFocus = \shapeFocus.kr(1);
+			var shapeParamLag = \shapeParamLag.kr(0.1);
+			var shapeSelect = Lag.ar(K2A.ar(\shapeSelect.kr(0)), shapeParamLag);
+			var shapeFocus = Lag.ar(K2A.ar(\shapeFocus.kr(1)), shapeParamLag);
 			var bus = \bus.kr(0);
 			var input = In.ar(bus) * \inputGain.kr(1);
 			var shapeChannels = Array.fill(numChebyBufs, {
 				arg order;
-				var cutoff = (order + 2).reciprocal * (SampleRate.ir / 2);
+				var cutoff = (order + 1.125).reciprocal * (SampleRate.ir / 2);
 				var filtered = LPF.ar(LPF.ar(LPF.ar(input, cutoff), cutoff), cutoff);
 				/// TODO: balance each channel with a more wideband saturator (also BL'd)
 				Shaper.ar(\buf.kr + order, filtered)
 
 			});
-			var output = SelectXFocus.ar(\shapeSelect.kr(0), shapeChannels, \shapeFocus.kr(1));
+			var output = SelectXFocus.ar(shapeSelect, shapeChannels, shapeFocus);
 			output = LeakDC.ar(output);
 			ReplaceOut.ar(bus, output);
 		}).send(server);
@@ -171,8 +172,6 @@ ZMultiTap {
 	setShapeFocus{ arg index, value;
 		synth[\filter][index].set(\shapeFocus, value);
 	}
-
-
 
 
 }

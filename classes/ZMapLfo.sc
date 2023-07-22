@@ -20,6 +20,7 @@ ZMapLfo {
 		4.do({ arg i; history.add(0) });
 		phase = 0;
 		increment = 0.1;
+		interpolationMode = 2;
 	}
 
 	tick {
@@ -58,7 +59,7 @@ ZMapLfo {
   : (Math.sqrt(1 - Math.pow(-2 * x + 2, 2)) + 1) / 2;
 			*/
 			{4}, { history[2].blend(history[3],
-				if(x < 0.5, { 
+				if(x < 0.5, {
 					var tmp = 2*x;
 					tmp = tmp * tmp
 					(1 - (1-tmp).sqrt) * 0.5
@@ -90,7 +91,7 @@ ZMapLfo_User : ZMapLfo {
 	var <>returnValueFunc;
 
 	getNextValue {
-		nextValueFunc.value(state);
+		state = nextValueFunc.value(state);
 		^returnValueFunc.value(state);
 	}
 }

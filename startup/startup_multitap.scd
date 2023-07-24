@@ -24,7 +24,9 @@ s.waitForBoot { Routine {
 	n = 2;
 	z = ZMultiTap.new(n, c);
 	s.sync;
-	z.synth[\input].set(\pos, 1);
+	z.synth[\input].set(\pos, 0);
+	z.setTapPosition(0, -1);
+	z.setTapPosition(1, 1);
 
 	// a volume taper. why not try an s-curve...
 	~taper = { arg midi;
@@ -35,7 +37,7 @@ s.waitForBoot { Routine {
 
 	// midi controls
 	m = ZSimpleMidiInput.new(connectAll:true);
-	//	m.verbose = true;
+	m.verbose = true;
 
 	// these CC numbers are quite arbitrary, please change!
 	m.cc(20, { arg ccVal;
@@ -45,14 +47,14 @@ s.waitForBoot { Routine {
 	m.cc(21, { arg ccVal; z.setTapLevel(1, ~taper.value(ccVal)); });
 
 	m.cc(22, { arg ccVal;
-		var delayTime = ccVal.linexp(0, 127, 0.1, 12.0);
+		var delayTime = ccVal.linexp(0, 127, 4, 32.0);
 		postln("delay time 1: " ++ delayTime);
 		z.setTapDelay(0, delayTime);
 	});
 
 	m.cc(23, { arg ccVal;
 		// FIXME: do something nicer wit this, like just intonation ratios
-		var delayTime = ccVal.linexp(0, 127, 0.1, 12.0);
+		var delayTime = ccVal.linexp(0, 127, 4, 32.0);
 		postln("delay time 2: " ++ delayTime);
 		z.setTapDelay(1, delayTime);
 	});
@@ -72,7 +74,20 @@ s.waitForBoot { Routine {
 		z.setShapeFocus(0, focus);
 	});
 
-	~ratioSet = [6/5, 5/4, 4/3, 3/2, 8/5, 5/3, 16/9];
+	~ratioSet = [6/5, 4/3, 3/2, 8/5, 2, 12/5, 3];
+
+	s.sync;
+
+	~noiser = Array.fill(2, { arg i;
+		{
+			var bus = z.bus[\tap][i].index;
+			var aenv = EnvGen.ar(Env.asr(4, 1, 12, \welch), \gate.kr(0));
+			var noise = BrownNoise.ar * \level.kr(-12.dbamp);
+			var input = In.ar(bus);
+			ReplaceOut.ar(bus, (aenv * noise) + ((1-aenv)*input));
+		}.play(z.group[\tap], addAction:\addAfter);
+	});
+
 	m.cc(1, { arg ccVal;
 		var ratioIndex = ccVal.linlin(0, 127, 0, ~ratioSet.size-1);
 		var ratio = ~ratioSet[ratioIndex];
@@ -112,12 +127,29 @@ s.waitForBoot { Routine {
 	~lfo_update_thread.stop;
 	*/
 
-	{ FreqScope.new(400, 200, z.bus[\tap][1].index, server: s); }.defer;
+	//	{ FreqScope.new(400, 200, z.bus[\tap][1].index, server: s); }.defer;
 
 
-	{ z.bus[\tap][1].scope; }.defer;
+	//	{ z.bus[\tap][1].scope; }.defer;
 
 	s.sync;
+
+	m.cc(26, { arg ccVal;
+		if (ccVal > 0, {
+			~noiser[0].set(\gate, 1);
+		}, {
+			~noiser[0].set(\gate, 0);
+		});
+	});
+
+	m.cc(27, { arg ccVal;
+		if (ccVal > 0, {
+			~noiser[1].set(\gate, 1);
+		}, {
+			~noiser[1].set(\gate, 0);
+		});
+	});
+
 
 	~anaKeys = [\amp, \pitch, \centroid, \flatness, \pcile];
 	~anaCount = ~anaKeys.size;
@@ -158,11 +190,11 @@ s.waitForBoot { Routine {
 					var k = ~anaKeys[ki];
 					~anaValues[i][k] = values[ki];
 					//postln("" ++ i ++ ": " ++ ~anaValues[i]);
-//					[
+					//					[
 					//	~anaValues[i][\centroid],
 					//	~anaValues[i][\flatness],
-	//					~anaValues[i][\pcile]
-		//			].postln;
+					//					~anaValues[i][\pcile]
+					//			].postln;
 					{ g.win.refresh; }.defer;
 				});
 			});
@@ -187,7 +219,7 @@ s.waitForBoot { Routine {
 				var timbreColor;
 				var timbreBlend;
 				timbreBlend = pcile.cpsmidi.linlin(~minPcileMidi, ~maxPcileMidi, 0.0, 1.0);
-				[pcile, timbreBlend].postln;
+				///				[pcile, timbreBlend].postln;
 				timbreColor = ~c1.blend(~c2, timbreBlend);
 				Pen.color_(Color.black.blend(timbreColor, amp.ampdb.max(-60).linlin(-60, 0, 0.0, 1.0)));
 				Pen.addRect(Rect(x, 0, w, h));
@@ -198,6 +230,7 @@ s.waitForBoot { Routine {
 	}.defer;
 
 
+	1.wait;
 	g.win.fullScreen;
 
 

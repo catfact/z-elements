@@ -55,14 +55,13 @@ ZMultiTap {
 			var shapeSelect = Lag.ar(K2A.ar(\shapeSelect.kr(0)), shapeParamLag);
 			var shapeFocus = Lag.ar(K2A.ar(\shapeFocus.kr(1)), shapeParamLag);
 			var bus = \bus.kr(0);
-			var input = In.ar(bus) * \inputGain.kr(1);
+			var input = In.ar(bus) * \inputGain.kr(0.5);
 			var shapeChannels = Array.fill(numChebyBufs, {
 				arg order;
 				var cutoff = (order + 1.125).reciprocal * (SampleRate.ir / 2);
 				var filtered = LPF.ar(LPF.ar(LPF.ar(input, cutoff), cutoff), cutoff);
 				/// TODO: balance each channel with a more wideband saturator (also BL'd)
 				Shaper.ar(\buf.kr + order, filtered)
-
 			});
 			var output = SelectXFocus.ar(shapeSelect, shapeChannels, shapeFocus);
 			output = LeakDC.ar(output);

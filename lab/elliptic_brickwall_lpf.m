@@ -14,7 +14,7 @@ printf("{\n\n")
 
 for r = ratios
     % design
-    [b,a] = ellip(order, ripple, attenuation, 1/r, 'low');
+    [b,a] = ellip(order, ripple, attenuation, 1/(r*2), 'low');
     [sos, g] = tf2sos(b,a);
 
     % matlab only:
